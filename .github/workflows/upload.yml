@@ -6,8 +6,8 @@ on:
       label:
         description: "Channel label (hidden-history-files, oldgold, story-atlas, past-present, tech-atlas)"
         required: true
-      video_url:
-        description: "Direct download URL of the MP4 (R2 signed URL)"
+      video_url_enc:
+        description: "Fernet-encrypted direct download URL of the MP4 (encrypt with YT_URL_KEY)"
         required: true
       title:
         description: "Video title"
@@ -19,8 +19,8 @@ on:
         description: "Comma-separated tags"
         required: false
         default: ""
-      thumbnail_url:
-        description: "Direct download URL of the thumbnail PNG"
+      thumbnail_url_enc:
+        description: "Fernet-encrypted direct download URL of the thumbnail PNG (encrypt with YT_URL_KEY)"
         required: false
         default: ""
       privacy:
@@ -44,6 +44,30 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Decrypt download URLs
+        # Decrypts the Fernet-encrypted inputs into env vars. Nothing is echoed;
+        # decrypted values are masked so they can never appear in logs.
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import os
+          from cryptography.fernet import Fernet
+          f = Fernet(os.environ["YT_URL_KEY"].encode())
+          video_url = f.decrypt(os.environ["VIDEO_URL_ENC"].encode()).decode()
+          thumb_url = f.decrypt(os.environ["THUMB_URL_ENC"].encode()).decode() if os.environ.get("THUMB_URL_ENC") else ""
+          # Mask decrypted values before they touch the environment.
+          print("::add-mask::%s" % video_url)
+          if thumb_url:
+              print("::add-mask::%s" % thumb_url)
+          with open(os.environ["GITHUB_ENV"], "a") as fh:
+              fh.write("VIDEO_URL=%s\n" % video_url)
+              fh.write("THUMB_URL=%s\n" % thumb_url)
+          print("urls decrypted")
+          EOF
+        env:
+          VIDEO_URL_ENC: ${{ inputs.video_url_enc }}
+          THUMB_URL_ENC: ${{ inputs.thumbnail_url_enc }}
+          YT_URL_KEY: ${{ secrets.YT_URL_KEY }}
       - name: Download video and thumbnail
         run: |
           set -euo pipefail
@@ -52,9 +76,6 @@ jobs:
             curl -fSL --retry 3 -o thumb.png "$THUMB_URL" || true
           fi
           ls -la video.mp4
-        env:
-          VIDEO_URL: ${{ inputs.video_url }}
-          THUMB_URL: ${{ inputs.thumbnail_url }}
       - name: Upload to YouTube
         run: |
           set -euo pipefail

@@ -1,0 +1,72 @@
+name: Upload video to YouTube
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Channel label (hidden-history-files, oldgold, story-atlas, past-present, tech-atlas)"
+        required: true
+      video_url:
+        description: "Direct download URL of the MP4 (R2 signed URL)"
+        required: true
+      title:
+        description: "Video title"
+        required: true
+      description:
+        description: "Video description"
+        required: true
+      tags:
+        description: "Comma-separated tags"
+        required: false
+        default: ""
+      thumbnail_url:
+        description: "Direct download URL of the thumbnail PNG"
+        required: false
+        default: ""
+      privacy:
+        description: "Initial privacy"
+        required: false
+        default: "unlisted"
+
+# One upload per channel at a time; queue the rest.
+concurrency:
+  group: yt-upload-${{ inputs.label }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Download video and thumbnail
+        run: |
+          set -euo pipefail
+          curl -fSL --retry 3 -o video.mp4 "$VIDEO_URL"
+          if [ -n "$THUMB_URL" ]; then
+            curl -fSL --retry 3 -o thumb.png "$THUMB_URL" || true
+          fi
+          ls -la video.mp4
+        env:
+          VIDEO_URL: ${{ inputs.video_url }}
+          THUMB_URL: ${{ inputs.thumbnail_url }}
+      - name: Upload to YouTube
+        run: |
+          set -euo pipefail
+          ARGS=(--label "$LABEL" --video video.mp4 --title "$TITLE"
+                --description "$DESCRIPTION" --tags "$TAGS" --privacy "$PRIVACY")
+          [ -f thumb.png ] && ARGS+=(--thumbnail thumb.png)
+          python3 scripts/yt_upload.py "${ARGS[@]}"
+        env:
+          LABEL: ${{ inputs.label }}
+          TITLE: ${{ inputs.title }}
+          DESCRIPTION: ${{ inputs.description }}
+          TAGS: ${{ inputs.tags }}
+          PRIVACY: ${{ inputs.privacy }}
+          YT_CLIENTS_JSON: ${{ secrets.YT_CLIENTS_JSON }}
+          YT_TOKENS_JSON: ${{ secrets.YT_TOKENS_JSON }}

@@ -1,0 +1,39 @@
+name: Publish video (flip visibility)
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Channel label"
+        required: true
+      video_id:
+        description: "YouTube video ID"
+        required: true
+      privacy:
+        description: "Target privacy"
+        required: false
+        default: "public"
+
+concurrency:
+  group: yt-publish-${{ inputs.label }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Flip visibility
+        run: python3 scripts/yt_publish.py --label "$LABEL" --video-id "$VIDEO_ID" --privacy "$PRIVACY"
+        env:
+          LABEL: ${{ inputs.label }}
+          VIDEO_ID: ${{ inputs.video_id }}
+          PRIVACY: ${{ inputs.privacy }}
+          YT_CLIENTS_JSON: ${{ secrets.YT_CLIENTS_JSON }}
+          YT_TOKENS_JSON: ${{ secrets.YT_TOKENS_JSON }}

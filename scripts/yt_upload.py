@@ -69,9 +69,14 @@ def main():
     vid = resp["id"]
 
     if a.thumbnail and os.path.exists(a.thumbnail):
-        with open(a.thumbnail, "rb") as f:
+        try:
             yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(
                 a.thumbnail, mimetype="image/png")).execute()
+            print("thumbnail set OK", flush=True)
+        except Exception as e:
+            # Non-fatal: video is already uploaded. Thumbnail 429s are common;
+            # the hourly health check retries missing thumbnails.
+            print("THUMBNAIL_FAILED (non-fatal): %s" % str(e)[:200], flush=True)
 
     # Mask the ID in CI logs, then emit it for the poller.
     print("::add-mask::%s" % vid)

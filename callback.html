@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>OAuth callback</title></head>
+<body style="font-family:sans-serif;word-break:break-all;padding:24px">
+<h2>Authorization code</h2>
+<p id="code" style="font-size:22px;font-weight:bold">waiting…</p>
+<script>
+var c = new URLSearchParams(location.search).get('code');
+document.getElementById('code').textContent = c ? c : 'NO CODE IN URL';
+document.title = c ? 'CODE OK' : 'NO CODE';
+</script>
+</body>
+</html>

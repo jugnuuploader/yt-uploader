@@ -1,0 +1,39 @@
+name: ntfy-report
+
+# Relay: publishes a pipeline report to an ntfy.sh topic.
+# Triggered via workflow_dispatch from the VM (direct egress to ntfy.sh is blocked).
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "ntfy topic name"
+        required: true
+        default: "muse1"
+      title:
+        description: "Notification title"
+        required: true
+      message:
+        description: "Notification body"
+        required: true
+      tags:
+        description: "Comma-separated ntfy tags (optional)"
+        required: false
+        default: ""
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish to ntfy
+        env:
+          NTFY_TOPIC: ${{ inputs.topic }}
+          NTFY_TITLE: ${{ inputs.title }}
+          NTFY_MESSAGE: ${{ inputs.message }}
+          NTFY_TAGS: ${{ inputs.tags }}
+        run: |
+          args=(-s -o /dev/null -w "%{http_code}")
+          [ -n "$NTFY_TITLE" ] && args+=(-H "Title: $NTFY_TITLE")
+          [ -n "$NTFY_TAGS" ] && args+=(-H "Tags: $NTFY_TAGS")
+          code=$(curl "${args[@]}" -d "$NTFY_MESSAGE" "https://ntfy.sh/${NTFY_TOPIC}")
+          echo "ntfy http code: $code"
+          [ "$code" = "200" ] || exit 1
